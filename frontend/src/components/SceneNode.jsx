@@ -13,7 +13,7 @@ export default function SceneNode({ id, data, selected }) {
 
       <Handle type="target" position={Position.Top} />
 
-      <div className="scene-node-header">
+      <div className="scene-node-header" style={{ background: data.color ?? '#f97316' }}>
         <span className="scene-node-title">{data.title || 'Untitled'}</span>
         <button className="scene-node-expand-btn" onClick={() => data.onExpand(id)} title="Expand">⤢</button>
         <button className="scene-node-delete-btn" onClick={() => data.onDeleteRequest(id)} title="Delete">✕</button>

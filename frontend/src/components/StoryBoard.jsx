@@ -16,10 +16,16 @@ export default function StoryBoard({ stories, loading, onCreate, onOpen }) {
 
           {stories.map((s) => (
             <button key={s.id} className="sb-story-card" onClick={() => onOpen(s.id)}>
-              <span className="sb-story-name">{s.name}</span>
-              <span className="sb-story-meta">
-                {new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
+              <div
+                className="sb-card-image"
+                style={s.coverImageUrl ? { backgroundImage: `url(${s.coverImageUrl})` } : undefined}
+              />
+              <div className="sb-card-info">
+                <span className="sb-story-name">{s.name}</span>
+                <span className="sb-story-meta">
+                  {new Date(s.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
             </button>
           ))}
         </div>

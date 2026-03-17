@@ -55,8 +55,8 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       const serialized = {
-        nodes: nds.map(({ id, type, position, style, data: { title, summary, notes } }) => ({
-          id, type, position, style, data: { title, summary, notes },
+        nodes: nds.map(({ id, type, position, style, data: { title, summary, notes, color } }) => ({
+          id, type, position, style, data: { title, summary, notes, color },
         })),
         edges: eds.map(({ id, source, target, animated }) => ({ id, source, target, animated })),
       };
@@ -81,7 +81,7 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
           id, type: 'scene',
           position: { x: 80 + (nodeCount % 4) * 260, y: 80 + Math.floor((nodeCount - 1) / 4) * 200 },
           style: { width: 220, height: 130 },
-          data: { title, summary, notes, onExpand, onDeleteRequest },
+          data: { title, summary, notes, color: '#f97316', onExpand, onDeleteRequest },
         }];
         scheduleSave(next, edges);
         return next;
@@ -133,7 +133,7 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
         id, type: 'scene',
         position: { x: 80 + (nodeCount % 4) * 260, y: 80 + Math.floor((nodeCount - 1) / 4) * 200 },
         style: { width: 220, height: 130 },
-        data: { title: 'New Scene', summary: '', notes: '', onExpand, onDeleteRequest },
+        data: { title: 'New Block', summary: '', notes: '', color: '#f97316', onExpand, onDeleteRequest },
       }];
       scheduleSave(next, edges);
       return next;
@@ -165,8 +165,8 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
     saveTimerRef.current = setTimeout(() => {
       setNodes((nds) => {
         const serialized = {
-          nodes: nds.map(({ id, type, position, style, data: { title, summary, notes } }) => ({
-            id, type, position, style, data: { title, summary, notes },
+          nodes: nds.map(({ id, type, position, style, data: { title, summary, notes, color } }) => ({
+            id, type, position, style, data: { title, summary, notes, color },
           })),
           edges: edges.map(({ id, source, target, animated }) => ({ id, source, target, animated })),
         };
@@ -191,9 +191,7 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
         fitView={nodes.length > 0}
         minZoom={0.1}
         maxZoom={2}
-        panOnScroll
-        panOnScrollSpeed={1.2}
-        zoomOnScroll={false}
+        zoomOnScroll
         zoomOnPinch
         proOptions={{ hideAttribution: true }}
       >
@@ -211,9 +209,9 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
       {deleteTargetNode && (
         <div className="overlay-backdrop" onClick={() => setDeleteTargetId(null)}>
           <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <p className="delete-confirm-title">Delete this scene?</p>
+            <p className="delete-confirm-title">Delete this block?</p>
             <p className="delete-confirm-name">"{deleteTargetNode.data.title}"</p>
-            <p className="delete-confirm-sub">This will also remove any connections to this scene.</p>
+            <p className="delete-confirm-sub">This will also remove any connections to this block.</p>
             <div className="delete-confirm-actions">
               <button className="delete-confirm-cancel" onClick={() => setDeleteTargetId(null)}>Cancel</button>
               <button className="delete-confirm-ok" onClick={confirmDelete}>Delete</button>

@@ -33,13 +33,14 @@ export function updateMeta(storyId, updates) {
 
 // Load all story data in parallel
 export async function loadStoryData(storyId) {
-  const [characters, scenes, themes, worldbuilding] = await Promise.all([
+  const [characters, scenes, themes, worldbuilding, cover] = await Promise.all([
     req('GET', `/api/stories/${storyId}/characters`),
     req('GET', `/api/stories/${storyId}/scenes`),
     req('GET', `/api/stories/${storyId}/themes`),
     req('GET', `/api/stories/${storyId}/worldbuilding`),
+    req('GET', `/api/stories/${storyId}/cover`),
   ]);
-  return { characters, scenes, themes, worldbuilding };
+  return { characters, scenes, themes, worldbuilding, cover };
 }
 
 // ── Autosave ──────────────────────────────────────────────────────────────────
@@ -58,6 +59,14 @@ export function saveThemes(storyId, themes) {
 
 export function saveWorldbuilding(storyId, entries) {
   return req('PUT', `/api/stories/${storyId}/worldbuilding`, entries);
+}
+
+export function saveCover(storyId, cover) {
+  return req('PUT', `/api/stories/${storyId}/cover`, cover);
+}
+
+export function uploadCoverImage(storyId, imageData) {
+  return req('POST', `/api/stories/${storyId}/cover/image`, { imageData });
 }
 
 // ── Images ────────────────────────────────────────────────────────────────────

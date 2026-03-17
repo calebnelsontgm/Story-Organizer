@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TiptapEditor from './TiptapEditor';
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -9,6 +10,7 @@ function makeTheme() {
 
 export default function ThemeTab({ themes, setThemes }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
 
   const addTheme = () => {
     const t = makeTheme();
@@ -19,7 +21,14 @@ export default function ThemeTab({ themes, setThemes }) {
   const update = (id, changes) =>
     setThemes((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
 
+  const confirmDelete = () => {
+    if (selectedId === deleteId) setSelectedId(null);
+    setThemes((prev) => prev.filter((t) => t.id !== deleteId));
+    setDeleteId(null);
+  };
+
   const selected = themes.find((t) => t.id === selectedId) ?? null;
+  const deleteTarget = themes.find((t) => t.id === deleteId) ?? null;
 
   return (
     <div className="theme-tab">
@@ -42,6 +51,11 @@ export default function ThemeTab({ themes, setThemes }) {
               ) : (
                 <span>{t.name || 'Untitled'}</span>
               )}
+              <button
+                className="sidebar-item-delete"
+                title="Delete theme"
+                onClick={(e) => { e.stopPropagation(); setDeleteId(t.id); }}
+              >✕</button>
             </div>
           ))}
         </div>
@@ -52,11 +66,10 @@ export default function ThemeTab({ themes, setThemes }) {
 
       <main className="theme-main">
         {selected ? (
-          <textarea
-            className="theme-body"
-            value={selected.body}
-            onChange={(e) => update(selected.id, { body: e.target.value })}
-            placeholder="Write freely…"
+          <TiptapEditor
+            contentId={selected.id}
+            content={selected.body}
+            onChange={(html) => update(selected.id, { body: html })}
           />
         ) : (
           <div className="theme-placeholder">
@@ -64,6 +77,19 @@ export default function ThemeTab({ themes, setThemes }) {
           </div>
         )}
       </main>
+
+      {deleteTarget && (
+        <div className="overlay-backdrop" onClick={() => setDeleteId(null)}>
+          <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <p className="delete-confirm-title">Delete this theme?</p>
+            <p className="delete-confirm-name">"{deleteTarget.name || 'Untitled'}"</p>
+            <div className="delete-confirm-actions">
+              <button className="delete-confirm-cancel" onClick={() => setDeleteId(null)}>Cancel</button>
+              <button className="delete-confirm-ok" onClick={confirmDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

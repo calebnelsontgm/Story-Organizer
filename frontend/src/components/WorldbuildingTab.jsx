@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TiptapEditor from './TiptapEditor';
 
 const CATEGORIES = [
   {
@@ -57,10 +58,12 @@ function makeEntry() {
 export default function WorldbuildingTab({ entries, setEntries }) {
   const [catId, setCatId] = useState(null);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
+  const [deleteEntryId, setDeleteEntryId] = useState(null);
 
   const cat = CATEGORIES.find((c) => c.id === catId);
   const catEntries = catId ? entries[catId] : [];
   const selectedEntry = catEntries.find((e) => e.id === selectedEntryId) ?? null;
+  const deleteTarget = catEntries.find((e) => e.id === deleteEntryId) ?? null;
 
   const openCategory = (id) => {
     setCatId(id);
@@ -78,6 +81,15 @@ export default function WorldbuildingTab({ entries, setEntries }) {
       ...prev,
       [catId]: prev[catId].map((e) => (e.id === id ? { ...e, ...changes } : e)),
     }));
+  };
+
+  const confirmDeleteEntry = () => {
+    if (selectedEntryId === deleteEntryId) setSelectedEntryId(null);
+    setEntries((prev) => ({
+      ...prev,
+      [catId]: prev[catId].filter((e) => e.id !== deleteEntryId),
+    }));
+    setDeleteEntryId(null);
   };
 
   // Landing — category grid
@@ -110,13 +122,19 @@ export default function WorldbuildingTab({ entries, setEntries }) {
         <div className="wb-sidebar-list">
           {catEntries.length === 0 && <p className="wb-empty">No entries yet.</p>}
           {catEntries.map((e) => (
-            <button
-              key={e.id}
-              className={`wb-entry-item ${e.id === selectedEntryId ? 'active' : ''}`}
-              onClick={() => setSelectedEntryId(e.id)}
-            >
-              {e.title || 'Untitled'}
-            </button>
+            <div key={e.id} className={`wb-entry-item ${e.id === selectedEntryId ? 'active' : ''}`}>
+              <button
+                className="wb-entry-item-btn"
+                onClick={() => setSelectedEntryId(e.id)}
+              >
+                {e.title || 'Untitled'}
+              </button>
+              <button
+                className="sidebar-item-delete"
+                title="Delete entry"
+                onClick={(e2) => { e2.stopPropagation(); setDeleteEntryId(e.id); }}
+              >✕</button>
+            </div>
           ))}
         </div>
         <div className="wb-sidebar-footer">
@@ -133,11 +151,10 @@ export default function WorldbuildingTab({ entries, setEntries }) {
               onChange={(e) => updateEntry(selectedEntry.id, { title: e.target.value })}
               placeholder="Entry title"
             />
-            <textarea
-              className="wb-entry-body"
-              value={selectedEntry.body}
-              onChange={(e) => updateEntry(selectedEntry.id, { body: e.target.value })}
-              placeholder="Write freely…"
+            <TiptapEditor
+              contentId={selectedEntry.id}
+              content={selectedEntry.body}
+              onChange={(html) => updateEntry(selectedEntry.id, { body: html })}
             />
           </>
         ) : (
@@ -146,6 +163,19 @@ export default function WorldbuildingTab({ entries, setEntries }) {
           </div>
         )}
       </main>
+
+      {deleteTarget && (
+        <div className="overlay-backdrop" onClick={() => setDeleteEntryId(null)}>
+          <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <p className="delete-confirm-title">Delete this entry?</p>
+            <p className="delete-confirm-name">"{deleteTarget.title || 'Untitled'}"</p>
+            <div className="delete-confirm-actions">
+              <button className="delete-confirm-cancel" onClick={() => setDeleteEntryId(null)}>Cancel</button>
+              <button className="delete-confirm-ok" onClick={confirmDeleteEntry}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

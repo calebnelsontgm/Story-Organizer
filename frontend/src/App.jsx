@@ -5,7 +5,8 @@ import ThemeTab from './components/ThemeTab';
 import WorldbuildingTab from './components/WorldbuildingTab';
 import StoryBoard from './components/StoryBoard';
 import { listStories, createStory, updateMeta, loadStoryData,
-  saveCharacters, saveThemes, saveWorldbuilding } from './api';
+  saveCharacters, saveThemes, saveWorldbuilding, saveCover } from './api';
+import CoverTab from './components/CoverTab';
 import AiPanel from './components/AiPanel';
 import './App.css';
 
@@ -64,11 +65,12 @@ export default function App() {
   const [boardLoading, setBoardLoading] = useState(true);
 
   // Editor
-  const [activeTab, setActiveTab] = useState('tree');
+  const [activeTab, setActiveTab] = useState('cover');
   const [storyName, setStoryName] = useState('');
   const [characters, setCharacters] = useState([]);
   const [themes, setThemes] = useState([]);
   const [wbEntries, setWbEntries] = useState({ factions: [], locations: [], history: [], misc: [] });
+  const [cover, setCover] = useState({ font: 'Playfair Display', synopsis: '', imageUrl: '' });
 
   const addSceneRef = useRef(null);
   const editSceneRef = useRef(null);
@@ -88,6 +90,7 @@ export default function App() {
   useAutosave(activeStoryId, characters, (v) => activeStoryId && saveCharacters(activeStoryId, v));
   useAutosave(activeStoryId, themes,     (v) => activeStoryId && saveThemes(activeStoryId, v));
   useAutosave(activeStoryId, wbEntries,  (v) => activeStoryId && saveWorldbuilding(activeStoryId, v));
+  useAutosave(activeStoryId, cover,      (v) => activeStoryId && saveCover(activeStoryId, v));
 
   // ── Board navigation ──────────────────────────────────────────────────────
 
@@ -100,8 +103,9 @@ export default function App() {
     setCharacters([]);
     setThemes([]);
     setWbEntries({ factions: [], locations: [], history: [], misc: [] });
+    setCover({ font: 'Playfair Display', synopsis: '', imageUrl: '' });
     setStoryName(name);
-    setActiveTab('tree');
+    setActiveTab('cover');
     setActiveStoryId(id);
   }, []);
 
@@ -114,6 +118,7 @@ export default function App() {
     setCharacters(data.characters ?? []);
     setThemes(data.themes ?? []);
     setWbEntries(data.worldbuilding ?? { factions: [], locations: [], history: [], misc: [] });
+    setCover(data.cover ?? { font: 'Playfair Display', synopsis: '', imageUrl: '' });
   }, [stories]);
 
   const handleBackToBoard = useCallback(() => {
@@ -236,15 +241,18 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <button className="sb-back-btn" onClick={handleBackToBoard} title="Back to stories">←</button>
+        <div className="header-left">
+          <button className="sb-back-btn" onClick={handleBackToBoard} title="Back to stories">←</button>
+          <input className="story-name-input" value={storyName} onChange={(e) => handleRenameStory(e.target.value)} placeholder="Story name" />
+        </div>
         <nav className="tab-bar">
+          <button className={`tab-btn ${activeTab === 'cover' ? 'active' : ''}`} onClick={() => setActiveTab('cover')}>Cover</button>
           <button className={`tab-btn ${activeTab === 'tree' ? 'active' : ''}`} onClick={() => setActiveTab('tree')}>Story Tree</button>
           <button className={`tab-btn ${activeTab === 'characters' ? 'active' : ''}`} onClick={() => setActiveTab('characters')}>Characters</button>
           <button className={`tab-btn ${activeTab === 'themes' ? 'active' : ''}`} onClick={() => setActiveTab('themes')}>Themes</button>
           <button className={`tab-btn ${activeTab === 'worldbuilding' ? 'active' : ''}`} onClick={() => setActiveTab('worldbuilding')}>Worldbuilding</button>
         </nav>
         <div className="header-right">
-          <input className="story-name-input" value={storyName} onChange={(e) => handleRenameStory(e.target.value)} placeholder="Story name" />
           <button className="theme-toggle" onClick={toggleTheme}>{dark ? '☀ Light' : '☾ Dark'}</button>
           <button className={`panel-toggle${panelOpen ? ' active' : ''}`} onClick={() => setPanelOpen((v) => !v)} title="AI Assistant">
             <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
@@ -254,7 +262,15 @@ export default function App() {
         </div>
       </header>
 
-      {activeTab === 'tree' ? (
+      {activeTab === 'cover' ? (
+        <CoverTab
+          storyId={activeStoryId}
+          storyName={storyName}
+          onRename={handleRenameStory}
+          cover={cover}
+          onCoverChange={setCover}
+        />
+      ) : activeTab === 'tree' ? (
         <StoryTree storyId={activeStoryId} addSceneRef={addSceneRef} editSceneRef={editSceneRef} scenesRef={scenesRef} />
       ) : activeTab === 'characters' ? (
         <CharactersTab characters={characters} setCharacters={setCharacters} storyId={activeStoryId} />

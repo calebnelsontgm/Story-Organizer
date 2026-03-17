@@ -67,6 +67,7 @@ app.post('/api/stories', async (req, res) => {
   await writeJSON(storyFile(id, 'scenes.json'), { nodes: [], edges: [] });
   await writeJSON(storyFile(id, 'themes.json'), []);
   await writeJSON(storyFile(id, 'worldbuilding.json'), { factions: [], locations: [], history: [], misc: [] });
+  await writeJSON(storyFile(id, 'cover.json'), { font: 'Playfair Display', synopsis: '', imageUrl: '' });
 
   res.json(meta);
 });
@@ -133,6 +134,33 @@ app.get('/api/stories/:id/worldbuilding', async (req, res) => {
 app.put('/api/stories/:id/worldbuilding', async (req, res) => {
   await writeJSON(storyFile(req.params.id, 'worldbuilding.json'), req.body);
   res.json({ ok: true });
+});
+
+// Cover
+app.get('/api/stories/:id/cover', async (req, res) => {
+  res.json(await readJSON(storyFile(req.params.id, 'cover.json'), { font: 'Playfair Display', synopsis: '', imageUrl: '' }));
+});
+
+app.put('/api/stories/:id/cover', async (req, res) => {
+  await writeJSON(storyFile(req.params.id, 'cover.json'), req.body);
+  res.json({ ok: true });
+});
+
+app.post('/api/stories/:id/cover/image', async (req, res) => {
+  const { imageData } = req.body;
+  const match = imageData.match(/^data:image\/(\w+);base64,(.+)$/s);
+  if (!match) return res.status(400).json({ error: 'Invalid image data' });
+  const [, ext, b64] = match;
+  const imgDir = storyFile(req.params.id, 'images');
+  await ensureDir(imgDir);
+  const existing = await fs.readdir(imgDir);
+  await Promise.all(existing.filter(f => f.startsWith('cover.')).map(f => fs.unlink(path.join(imgDir, f))));
+  const filename = `cover.${ext}`;
+  await fs.writeFile(path.join(imgDir, filename), Buffer.from(b64, 'base64'));
+  const url = `/api/stories/${req.params.id}/images/${filename}?t=${Date.now()}`;
+  const current = await readJSON(storyFile(req.params.id, 'meta.json'), {});
+  await writeJSON(storyFile(req.params.id, 'meta.json'), { ...current, coverImageUrl: url });
+  res.json({ url });
 });
 
 // ── Image routes ─────────────────────────────────────────────────────────────
