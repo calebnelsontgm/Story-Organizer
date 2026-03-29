@@ -1,0 +1,8 @@
+{
+  "name": "story-organizer",
+  "private": true,
+  "scripts": {
+    "push-story": "cd backend/data/stories/1773769540078-jr1wh && git add -A && git commit -m \"update\" && git push",
+    "pull-story": "cd backend/data/stories/1773769540078-jr1wh && git pull"
+  }
+}
