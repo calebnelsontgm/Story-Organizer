@@ -3,21 +3,88 @@ import {
   ReactFlow,
   addEdge,
   Background,
+  Panel,
   useNodesState,
   useEdgesState,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import SceneNode from './SceneNode';
+import TextNode from './TextNode';
+import ShapeNode from './ShapeNode';
+import ImageNode from './ImageNode';
 import NodeOverlay from './NodeOverlay';
 import { loadStoryData, saveScenes } from '../api';
 
-const nodeTypes = { scene: SceneNode };
+const nodeTypes = {
+  scene: SceneNode,
+  text: TextNode,
+  shape: ShapeNode,
+  image: ImageNode,
+};
 
 let nodeCount = 0;
 
-function injectCallbacks(nodes, onExpand, onDeleteRequest) {
-  return nodes.map((n) => ({ ...n, data: { ...n.data, onExpand, onDeleteRequest } }));
+function serializeNodes(nds) {
+  return nds.map((n) => {
+    const base = {
+      id: n.id,
+      type: n.type,
+      position: n.position,
+      style: {
+        width: n.measured?.width ?? n.style?.width,
+        height: n.measured?.height ?? n.style?.height,
+      },
+    };
+    if (n.type === 'scene')  return { ...base, data: { title: n.data.title, summary: n.data.summary, notes: n.data.notes, color: n.data.color } };
+    if (n.type === 'text')   return { ...base, data: { text: n.data.text, color: n.data.color } };
+    if (n.type === 'shape')  return { ...base, data: { shape: n.data.shape, fillColor: n.data.fillColor, strokeColor: n.data.strokeColor, label: n.data.label ?? '' } };
+    if (n.type === 'image')  return { ...base, data: { url: n.data.url } };
+    return { ...base, data: n.data };
+  });
+}
+
+function serializeEdges(eds) {
+  return eds.map(({ id, source, target, animated, type }) => ({ id, source, target, animated, ...(type ? { type } : {}) }));
+}
+
+function injectCallbacks(nodes, onChange, onDeleteRequest, onExpand) {
+  return nodes.map((n) => {
+    const base = { ...n, data: { ...n.data, onChange, onDeleteRequest } };
+    return n.type === 'scene' ? { ...base, data: { ...base.data, onExpand } } : base;
+  });
+}
+
+// Inner toolbar — lives inside ReactFlow tree so it can use useReactFlow
+function CanvasToolbar({ onAddScene, onAddText, onAddShape, onPrepareImage, imageInputRef }) {
+  const { screenToFlowPosition } = useReactFlow();
+
+  const center = (w = 0, h = 0) => {
+    const p = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    return { x: p.x - w / 2, y: p.y - h / 2 };
+  };
+
+  return (
+    <Panel position="bottom-center" className="canvas-toolbar">
+      <button className="canvas-toolbar-btn canvas-toolbar-scene" onClick={() => onAddScene(center(220, 130))}>
+        ⊞ Scene
+      </button>
+      <div className="canvas-toolbar-sep" />
+      <button className="canvas-toolbar-btn" onClick={() => onAddText(center(160, 60))}>
+        T Text
+      </button>
+      <button className="canvas-toolbar-btn" onClick={() => onAddShape('rect', center(140, 140))}>
+        ▭ Rect
+      </button>
+      <button className="canvas-toolbar-btn" onClick={() => onAddShape('ellipse', center(140, 140))}>
+        ◯ Circle
+      </button>
+      <button className="canvas-toolbar-btn" onClick={() => { onPrepareImage(center(200, 160)); imageInputRef.current?.click(); }}>
+        ⬛ Image
+      </button>
+    </Panel>
+  );
 }
 
 export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRef }) {
@@ -31,46 +98,54 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
   const storyIdRef = useRef(storyId);
   storyIdRef.current = storyId;
 
+  const imageInputRef = useRef(null);
+  const pendingImagePosRef = useRef({ x: 0, y: 0 });
+
   const onExpand = useCallback((id) => setExpandedId(id), []);
   const onDeleteRequest = useCallback((id) => setDeleteTargetId(id), []);
 
-  // Load saved scenes when storyId changes
+  const handleChangeRef = useRef(null);
+  const stableOnChange = useCallback((...args) => handleChangeRef.current?.(...args), []);
+
   useEffect(() => {
     setLoaded(false);
     loadStoryData(storyId).then(({ scenes }) => {
       const savedNodes = scenes?.nodes ?? [];
       const savedEdges = scenes?.edges ?? [];
-      // Fix nodeCount to avoid ID collisions with saved nodes
       const maxNum = Math.max(0, ...savedNodes.map((n) => parseInt(n.id.replace('node-', '')) || 0));
       nodeCount = Math.max(nodeCount, maxNum);
-      setNodes(injectCallbacks(savedNodes, onExpand, onDeleteRequest));
+      setNodes(injectCallbacks(savedNodes, stableOnChange, onDeleteRequest, onExpand));
       setEdges(savedEdges);
       setLoaded(true);
     });
   }, [storyId]); // eslint-disable-line
 
-  // Debounced autosave — only after initial load
   const scheduleSave = useCallback((nds, eds) => {
     if (!loaded) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      const serialized = {
-        nodes: nds.map(({ id, type, position, style, data: { title, summary, notes, color } }) => ({
-          id, type, position, style, data: { title, summary, notes, color },
-        })),
-        edges: eds.map(({ id, source, target, animated }) => ({ id, source, target, animated })),
-      };
-      saveScenes(storyIdRef.current, serialized).catch(() => {});
+      saveScenes(storyIdRef.current, {
+        nodes: serializeNodes(nds),
+        edges: serializeEdges(eds),
+      }).catch(() => {});
     }, 1200);
   }, [loaded]);
 
-  // Re-inject callbacks when they change (stable, but belt-and-suspenders)
   useEffect(() => {
     if (!loaded) return;
-    setNodes((nds) => injectCallbacks(nds, onExpand, onDeleteRequest));
-  }, [onExpand, onDeleteRequest, loaded]); // eslint-disable-line
+    setNodes((nds) => injectCallbacks(nds, stableOnChange, onDeleteRequest, onExpand));
+  }, [stableOnChange, onDeleteRequest, onExpand, loaded]); // eslint-disable-line
 
-  // Wire addSceneRef
+  const handleChange = useCallback((nodeId, field, value) => {
+    setNodes((nds) => {
+      const next = nds.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, [field]: value } } : n);
+      scheduleSave(next, edges);
+      return next;
+    });
+  }, [setNodes, scheduleSave, edges]);
+  handleChangeRef.current = handleChange;
+
+  // Wire addSceneRef (AI-driven — uses staggered fallback position)
   useEffect(() => {
     if (!addSceneRef) return;
     addSceneRef.current = (title, summary = '', notes = '') => {
@@ -81,28 +156,28 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
           id, type: 'scene',
           position: { x: 80 + (nodeCount % 4) * 260, y: 80 + Math.floor((nodeCount - 1) / 4) * 200 },
           style: { width: 220, height: 130 },
-          data: { title, summary, notes, color: '#f97316', onExpand, onDeleteRequest },
+          data: { title, summary, notes, color: '#f97316', onChange: stableOnChange, onExpand, onDeleteRequest },
         }];
         scheduleSave(next, edges);
         return next;
       });
     };
-  }, [addSceneRef, onExpand, onDeleteRequest, scheduleSave, edges]);
+  }, [addSceneRef, stableOnChange, onExpand, onDeleteRequest, scheduleSave, edges]);
 
-  // Keep scenesRef current so App can read scene titles for context
   useEffect(() => {
     if (scenesRef) {
-      scenesRef.current = nodes.map((n) => ({ title: n.data.title, summary: n.data.summary }));
+      scenesRef.current = nodes
+        .filter((n) => n.type === 'scene')
+        .map((n) => ({ title: n.data.title, summary: n.data.summary }));
     }
   }, [nodes, scenesRef]);
 
-  // Wire editSceneRef
   useEffect(() => {
     if (!editSceneRef) return;
     editSceneRef.current = (sceneTitle, field, value) => {
       setNodes((nds) => {
         const next = nds.map((n) =>
-          n.data.title.toLowerCase() === sceneTitle.toLowerCase()
+          n.type === 'scene' && n.data.title.toLowerCase() === sceneTitle.toLowerCase()
             ? { ...n, data: { ...n.data, [field]: value } }
             : n
         );
@@ -125,20 +200,73 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
     setDeleteTargetId(null);
   }, [deleteTargetId, setNodes, setEdges, scheduleSave]);
 
-  const addNode = useCallback(() => {
+  // ── Add handlers (accept position from toolbar) ───────────────
+
+  const addNode = useCallback((position) => {
     nodeCount += 1;
     const id = `node-${nodeCount}`;
     setNodes((nds) => {
       const next = [...nds, {
-        id, type: 'scene',
-        position: { x: 80 + (nodeCount % 4) * 260, y: 80 + Math.floor((nodeCount - 1) / 4) * 200 },
+        id, type: 'scene', position,
         style: { width: 220, height: 130 },
-        data: { title: 'New Block', summary: '', notes: '', color: '#f97316', onExpand, onDeleteRequest },
+        data: { title: 'New Block', summary: '', notes: '', color: '#f97316', onChange: stableOnChange, onExpand, onDeleteRequest },
       }];
       scheduleSave(next, edges);
       return next;
     });
-  }, [setNodes, onExpand, onDeleteRequest, scheduleSave, edges]);
+  }, [setNodes, stableOnChange, onExpand, onDeleteRequest, scheduleSave, edges]);
+
+  const addTextNode = useCallback((position) => {
+    nodeCount += 1;
+    const id = `node-${nodeCount}`;
+    setNodes((nds) => {
+      const next = [...nds, {
+        id, type: 'text', position,
+        style: { width: 160, height: 60 },
+        data: { text: '', color: null, onChange: stableOnChange, onDeleteRequest },
+      }];
+      scheduleSave(next, edges);
+      return next;
+    });
+  }, [setNodes, stableOnChange, onDeleteRequest, scheduleSave, edges]);
+
+  const addShapeNode = useCallback((shape, position) => {
+    nodeCount += 1;
+    const id = `node-${nodeCount}`;
+    setNodes((nds) => {
+      const next = [...nds, {
+        id, type: 'shape', position,
+        style: { width: 140, height: 140 },
+        data: { shape, fillColor: 'var(--bg-raised)', strokeColor: 'var(--accent)', onChange: stableOnChange, onDeleteRequest },
+      }];
+      scheduleSave(next, edges);
+      return next;
+    });
+  }, [setNodes, stableOnChange, onDeleteRequest, scheduleSave, edges]);
+
+  const handleImageFile = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const position = pendingImagePosRef.current;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      nodeCount += 1;
+      const id = `node-${nodeCount}`;
+      setNodes((nds) => {
+        const next = [...nds, {
+          id, type: 'image', position,
+          style: { width: 200, height: 160 },
+          data: { url: ev.target.result, onChange: stableOnChange, onDeleteRequest },
+        }];
+        scheduleSave(next, edges);
+        return next;
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [setNodes, stableOnChange, onDeleteRequest, scheduleSave, edges]);
+
+  // ── Edges & drag ──────────────────────────────────────────────
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => {
@@ -149,28 +277,17 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
     [setEdges, scheduleSave, nodes]
   );
 
-  const handleChange = useCallback((nodeId, field, value) => {
-    setNodes((nds) => {
-      const next = nds.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, [field]: value } } : n);
-      scheduleSave(next, edges);
-      return next;
-    });
-  }, [setNodes, scheduleSave, edges]);
-
-  // Save on node drag/resize (position/size changes via onNodesChange)
   const handleNodesChange = useCallback((changes) => {
     onNodesChange(changes);
-    // Debounce a save after React Flow updates state
+    const hasMoved = changes.some((c) => c.type === 'position' || c.type === 'dimensions');
+    if (!hasMoved) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       setNodes((nds) => {
-        const serialized = {
-          nodes: nds.map(({ id, type, position, style, data: { title, summary, notes, color } }) => ({
-            id, type, position, style, data: { title, summary, notes, color },
-          })),
-          edges: edges.map(({ id, source, target, animated }) => ({ id, source, target, animated })),
-        };
-        saveScenes(storyIdRef.current, serialized).catch(() => {});
+        saveScenes(storyIdRef.current, {
+          nodes: serializeNodes(nds),
+          edges: serializeEdges(edges),
+        }).catch(() => {});
         return nds;
       });
     }, 1200);
@@ -196,9 +313,16 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
         proOptions={{ hideAttribution: true }}
       >
         <Background color="#334155" gap={28} size={1} />
+        <CanvasToolbar
+          onAddScene={addNode}
+          onAddText={addTextNode}
+          onAddShape={addShapeNode}
+          onPrepareImage={(pos) => { pendingImagePosRef.current = pos; }}
+          imageInputRef={imageInputRef}
+        />
       </ReactFlow>
 
-      <button className="add-node-btn" onClick={addNode} title="Add scene">+</button>
+      <input ref={imageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageFile} />
 
       <NodeOverlay
         node={expandedNode}
@@ -209,9 +333,17 @@ export default function StoryTree({ storyId, addSceneRef, editSceneRef, scenesRe
       {deleteTargetNode && (
         <div className="overlay-backdrop" onClick={() => setDeleteTargetId(null)}>
           <div className="delete-confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <p className="delete-confirm-title">Delete this block?</p>
-            <p className="delete-confirm-name">"{deleteTargetNode.data.title}"</p>
-            <p className="delete-confirm-sub">This will also remove any connections to this block.</p>
+            <p className="delete-confirm-title">Delete this element?</p>
+            <p className="delete-confirm-name">
+              {deleteTargetNode.type === 'scene'
+                ? `"${deleteTargetNode.data.title}"`
+                : deleteTargetNode.type === 'text'
+                ? 'Text block'
+                : deleteTargetNode.type === 'shape'
+                ? `${deleteTargetNode.data.shape === 'ellipse' ? 'Circle' : 'Rectangle'}`
+                : 'Image'}
+            </p>
+            <p className="delete-confirm-sub">This will also remove any connections to this element.</p>
             <div className="delete-confirm-actions">
               <button className="delete-confirm-cancel" onClick={() => setDeleteTargetId(null)}>Cancel</button>
               <button className="delete-confirm-ok" onClick={confirmDelete}>Delete</button>

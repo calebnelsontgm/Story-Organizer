@@ -177,7 +177,7 @@ function CharacterArcPage({ char, set, setNested }) {
   const sc = (k) => (v) => setNested('arcChanges', k, v);
   return (
     <div className="cp-page-content cp-two-col">
-      <Field label="At first, what challenges the core urge?" value={char.atFirst} onChange={(v) => set('atFirst', v)} rows={3} />
+      <Field label="At first, what reinforces the core urge?" value={char.atFirst} onChange={(v) => set('atFirst', v)} rows={3} />
       <Field label="Later on… what challenges it?" value={char.laterOn} onChange={(v) => set('laterOn', v)} rows={3} />
 
       <div className="cp-field cp-full">
